@@ -295,26 +295,29 @@ def do_first_time_setup(quiet: bool = False) -> None:
 def is_system_directory(path: str) -> bool:
     """
     Check if the given path is a system directory that should trigger a warning.
+    Only warns for direct system directories, not their subdirectories.
     """
     system_dirs = {
         # Windows system directories
-        r"C:\Windows", r"C:\Program Files", r"C:\Program Files (x86)", r"C:\Users",
+        r"C:\Windows", r"C:\Program Files", r"C:\Program Files (x86)",
         # macOS system directories
-        "/System", "/Library", "/Users", "/Applications", "/usr", "/bin", "/sbin",
+        "/System", "/Library", "/Applications", "/usr", "/bin", "/sbin",
         # Linux system directories
-        "/etc", "/var", "/opt", "/home", "/root", "/usr", "/bin", "/sbin", "/lib", "/dev"
+        "/etc", "/var", "/opt", "/root", "/usr", "/bin", "/sbin", "/lib", "/dev"
     }
     
     # Convert path to absolute and normalize
     abs_path = os.path.abspath(path)
     
-    # Check if the path is or is inside a system directory
+    # Check if the path exactly matches a system directory
     for sys_dir in system_dirs:
         try:
-            if sys_dir in abs_path or os.path.commonpath([sys_dir, abs_path]) == sys_dir:
+            # Normalize both paths for comparison
+            norm_sys_dir = os.path.normpath(sys_dir)
+            norm_path = os.path.normpath(abs_path)
+            if norm_path == norm_sys_dir:
                 return True
         except ValueError:
-            # commonpath raises ValueError if paths are on different drives
             continue
     return False
 

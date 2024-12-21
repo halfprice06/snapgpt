@@ -1,0 +1,56 @@
+# Python packaging
+*.egg
+*.egg-info/
+*.eggs/
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.whl
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*_env/
+
+# IDE and system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Generated files
+*.txt
+!requirements.txt
+!LICENSE.txt
+!README.txt
+
+# Test directories
+test_dir/
+test_project/
+test_repos/
+

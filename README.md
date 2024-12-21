@@ -24,7 +24,10 @@ SnapGPT crawls through your directories, gathers all relevant code files (based 
 * Automatically exclude certain directories (e.g., `__pycache__`, `.git`, `node_modules`)
 * Configurable file extensions (e.g., `.py`, `.js`, `.tsx`) so you can include exactly what you want
 * **Auto-open the snapshot** in an editor of your choice (Cursor, VS Code, Windsurf, Zed, Xcode, or fallback to your system default)
-* Lightweight and has minimal dependencies (primarily `termcolor`)
+* **Auto-copy to clipboard** - Automatically copy the snapshot to your clipboard (configurable)
+* **First-time setup wizard** - Interactive setup to choose your preferred editor and clipboard settings
+* **Cross-platform editor support** - Improved support for editors across Windows, Mac, and Linux
+* Lightweight and has minimal dependencies
 * **Local only**: SnapGPT does not make any network calls, keeping your code fully private
 
 ---
@@ -67,7 +70,22 @@ It is tested on Linux, macOS, and Windows.
 
 ## Quick Start 🏃‍♂️
 
-From your project directory, simply run:
+When you run SnapGPT for the first time, you'll be greeted with a setup wizard:
+```
+Welcome to snapgpt! Let's set up your preferences.
+
+Available editors:
+1. Cursor
+2. Code
+3. Windsurf
+4. Zed
+5. Xcode
+
+Which editor would you like to use as default? (enter number): 
+Would you like snapshots to be automatically copied to clipboard? (y/n): 
+```
+
+After setup, simply run:
 ```bash
 snapgpt
 ```
@@ -77,7 +95,8 @@ By default, SnapGPT will:
 2. Exclude folders such as `__pycache__`, `.git`, `node_modules`, etc.
 3. Include files with extensions like `.py`, `.js`, `.md`, `.json`, and more
 4. Save everything to `full_code_snapshot.txt`
-5. Open that file in your default editor (configured in `~/.config/snapgpt/config.json`)
+5. Open that file in your chosen editor
+6. Copy the content to your clipboard (if enabled)
 
 You will see:
 1. A directory tree at the top of `full_code_snapshot.txt`
@@ -98,12 +117,13 @@ snapgpt [options]
 | `-d, --directories` | List of directories to scan (default: .) |
 | `-o, --output` | Output file path (default: full_code_snapshot.txt) |
 | `-e, --extensions` | File extensions to include (e.g. -e .py .js .md) |
-| `--exclude-dirs` | Directories to exclude from scanning (e.g. --exclude-dirs .git node_modules dist) |
+| `--exclude-dirs` | Directories to exclude from scanning |
 | `--no-open` | Do not automatically open the snapshot after creation |
-| `--editor {cursor,code,windsurf,zed,xcode}` | Editor to open the snapshot in (overrides your default config) |
-| `--set-default-editor` | Set the default editor globally, then exit (e.g. snapgpt --set-default-editor code) |
-| `--set-default-extensions` | Set the default file extensions globally, then exit (e.g. snapgpt --set-default-extensions .py .md) |
-| `--set-default-exclude-dirs` | Set the default excluded directories globally, then exit |
+| `--no-copy` | Do not copy the snapshot to clipboard |
+| `--editor {cursor,code,windsurf,zed,xcode}` | Editor to open the snapshot in |
+| `--set-default-editor` | Set the default editor globally |
+| `--set-default-extensions` | Set the default file extensions globally |
+| `--set-default-exclude-dirs` | Set the default excluded directories globally |
 | `--max-size` | Maximum file size in MB to include (0 for no limit) |
 | `--max-depth` | Maximum directory depth to traverse (0 for no limit) |
 | `-q, --quiet` | Suppress progress and non-error messages |
@@ -132,21 +152,23 @@ snapgpt --max-size 1 --max-depth 5
 
 ## Configuration ⚙️
 
-SnapGPT reads configuration from `~/.config/snapgpt/config.json`, which is auto-created with defaults the first time you run SnapGPT.
+SnapGPT reads configuration from `~/.config/snapgpt/config.json`, which is created during first-time setup or with defaults if you skip the setup.
 
-Example config (simplified):
+Example config:
 ```json
 {
   "default_editor": "cursor",
+  "auto_copy_to_clipboard": true,
+  "first_time_setup_done": true,
   "file_extensions": [".py", ".js", ".ts", ".md", ".json"],
   "exclude_dirs": ["__pycache__", ".git", "node_modules", "build"]
 }
 ```
 
-You can update these values persistently using:
-* `snapgpt --set-default-editor [cursor|code|windsurf|zed|xcode]`
-* `snapgpt --set-default-extensions .py .js .md`
-* `snapgpt --set-default-exclude-dirs .git node_modules build`
+You can update these values:
+* Through the first-time setup wizard
+* Using command-line flags like `--set-default-editor` and `--no-copy`
+* By directly editing the config file
 
 ## Privacy and Security 🔒
 * **Local Only**: SnapGPT does not send your code to any external server or service. It simply reads files from your disk and consolidates them into a single text file.

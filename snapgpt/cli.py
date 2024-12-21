@@ -9,6 +9,7 @@ import sys
 import json
 from typing import List, Set, Tuple
 from termcolor import colored, cprint  # for colored output
+import pyperclip  # for clipboard support
 
 CONFIG_DIR = Path.home() / '.config' / 'snapgpt'
 CONFIG_FILE = CONFIG_DIR / 'config.json'
@@ -16,6 +17,8 @@ CONFIG_FILE = CONFIG_DIR / 'config.json'
 # Default configuration
 DEFAULT_CONFIG = {
     'default_editor': 'cursor',
+    'auto_copy_to_clipboard': True,  # New setting for clipboard behavior
+    'first_time_setup_done': False,  # Track if first-time setup is completed
     'file_extensions': [
         # Core code files
         ".py", ".js", ".ts", ".jsx", ".tsx",  # Python, JavaScript, TypeScript
@@ -148,6 +151,13 @@ def create_directory_tree(
     permission_errors = []  # Track permission errors
     large_files = []  # Track files exceeding size limit
     
+    # Define proper Unicode box-drawing characters
+    BOX_VERTICAL = "│"
+    BOX_HORIZONTAL = "─"
+    BOX_VERTICAL_RIGHT = "├"
+    BOX_UP_RIGHT = "└"
+    BOX_SPACE = " "
+    
     def add_to_tree(path, prefix="", is_last=False, current_depth=0):
         # Check depth limit
         if max_depth > 0 and current_depth > max_depth:
@@ -156,8 +166,8 @@ def create_directory_tree(
         # Get the relative name for display
         display_name = path.name or str(path)
         
-        # Add current item to the tree
-        tree_output.append(f"{prefix}{'└── ' if is_last else '├── '}{display_name}")
+        # Add current item to the tree using proper box-drawing characters
+        tree_output.append(f"{prefix}{BOX_UP_RIGHT if is_last else BOX_VERTICAL_RIGHT}{BOX_HORIZONTAL*2} {display_name}")
         
         # If it's a file, add it to file_order and return
         if path.is_file():
@@ -193,7 +203,7 @@ def create_directory_tree(
         
         # Process all items
         for index, item in enumerate(all_items):
-            new_prefix = prefix + ("    " if is_last else "│   ")
+            new_prefix = prefix + (BOX_SPACE * 4 if is_last else f"{BOX_VERTICAL}{BOX_SPACE*3}")
             is_last_item = index == items_count - 1
             add_to_tree(item, new_prefix, is_last_item, current_depth + 1)
     
@@ -207,8 +217,8 @@ def create_directory_tree(
         # If it's a file, create a parent directory node
         if path.is_file():
             parent_display = path.parent.name or str(path.parent)
-            tree_output.append(f"└── {parent_display}")
-            tree_output.append(f"    └── {path.name}")
+            tree_output.append(f"{BOX_UP_RIGHT}{BOX_HORIZONTAL*2} {parent_display}")
+            tree_output.append(f"    {BOX_UP_RIGHT}{BOX_HORIZONTAL*2} {path.name}")
             
             file_size = path.stat().st_size
             is_valid_extension = path.suffix.lower() in include_file_extensions
@@ -242,6 +252,45 @@ def create_directory_tree(
         print_warning(f"No files found matching the specified extensions: {', '.join(include_file_extensions)}", quiet)
     
     return "\n".join(tree_output), file_order
+
+def do_first_time_setup(quiet: bool = False) -> None:
+    """
+    Perform first-time setup by asking the user for their preferences.
+    """
+    config = get_config()
+    
+    if not config.get('first_time_setup_done', False):
+        print("\nWelcome to snapgpt! Let's set up your preferences.\n")
+        
+        # Ask for default editor
+        editors = ['cursor', 'code', 'windsurf', 'zed', 'xcode']
+        print("Available editors:")
+        for i, editor in enumerate(editors, 1):
+            print(f"{i}. {editor.title()}")
+        
+        while True:
+            try:
+                choice = input("\nWhich editor would you like to use as default? (enter number): ")
+                editor_index = int(choice) - 1
+                if 0 <= editor_index < len(editors):
+                    config['default_editor'] = editors[editor_index]
+                    break
+                print("Invalid choice. Please enter a number from the list.")
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        # Ask for clipboard preference
+        while True:
+            choice = input("\nWould you like snapshots to be automatically copied to clipboard? (y/n): ").lower()
+            if choice in ('y', 'n'):
+                config['auto_copy_to_clipboard'] = (choice == 'y')
+                break
+            print("Please enter 'y' for yes or 'n' for no.")
+        
+        # Mark setup as complete
+        config['first_time_setup_done'] = True
+        save_config(config)
+        print("\nSetup complete! You can change these settings later using command line options.\n")
 
 def create_code_snapshot(
     directories=["."],
@@ -279,8 +328,13 @@ def create_code_snapshot(
     """
     Recursively collects all code files from the specified directories and concatenates them into a single file.
     Focuses on files that are most relevant for code review and LLM context.
+    Also copies the content to clipboard if enabled in config.
     """
     print_progress(f"Processing directories: {', '.join(directories)}", quiet)
+    
+    # Get clipboard preference from config
+    config = get_config()
+    auto_copy = config.get('auto_copy_to_clipboard', True)
     
     # Resolve directories relative to current working directory
     resolved_dirs = [Path(d).resolve() for d in directories]
@@ -289,6 +343,9 @@ def create_code_snapshot(
     output_path = Path(output_file).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Use a string buffer to collect all content
+    content_buffer = []
+    
     with open(output_path, "w", encoding="utf-8") as out_f:
         # First, add the directory tree and get the file order
         directory_tree, file_order = create_directory_tree(
@@ -296,7 +353,10 @@ def create_code_snapshot(
             max_file_size, max_depth, quiet
         )
         out_f.write(directory_tree)
+        content_buffer.append(directory_tree)
+        
         out_f.write("\n\n# ======= File Contents =======\n\n")
+        content_buffer.append("\n\n# ======= File Contents =======\n\n")
         
         # Process files in the same order as they appear in the tree
         total_files = len(file_order)
@@ -308,13 +368,16 @@ def create_code_snapshot(
             # Write a header to indicate the start of this file's content
             try:
                 relative_path = file_path.relative_to(next(d for d in resolved_dirs if str(file_path).startswith(str(d))).parent)
-                out_f.write(f"\n\n# ======= File: {relative_path} =======\n\n")
+                header = f"\n\n# ======= File: {relative_path} =======\n\n"
+                out_f.write(header)
+                content_buffer.append(header)
                 
                 # Read and append file content
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         content = f.read()
                     out_f.write(content)
+                    content_buffer.append(content)
                 except Exception as e:
                     print_error(f"Error reading {file_path}: {e}", quiet)
                     continue
@@ -325,90 +388,157 @@ def create_code_snapshot(
         if not quiet:
             print()  # New line after progress
     
+    # Copy content to clipboard if enabled
+    if auto_copy:
+        try:
+            pyperclip.copy(''.join(content_buffer))
+            print_progress("Content copied to clipboard", quiet)
+        except Exception as e:
+            print_warning(f"Could not copy to clipboard: {e}", quiet)
+    
     print_progress(f"\nCode snapshot created at: {output_path}", quiet)
     return str(output_path)
 
-def find_cursor_on_windows():
+def find_editor_on_windows(editor: str) -> str:
     """
-    Find the Cursor executable on Windows by checking common installation locations.
-    Returns the path to Cursor.exe if found, None otherwise.
+    Find the editor executable on Windows by checking common installation locations.
+    Returns the path to the executable if found, None otherwise.
     """
-    possible_paths = [
-        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\Cursor.exe"),
-        os.path.expandvars(r"%LOCALAPPDATA%\Cursor\Cursor.exe"),
-        os.path.expandvars(r"%PROGRAMFILES%\Cursor\Cursor.exe"),
-        os.path.expandvars(r"%PROGRAMFILES(X86)%\Cursor\Cursor.exe"),
-        # Add the path from where 'cursor' command might be symlinked
-        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js"),
-    ]
-    
-    for path in possible_paths:
-        if os.path.isfile(path):
-            return path
+    editor_paths = {
+        'cursor': [
+            r"%LOCALAPPDATA%\Programs\Cursor\Cursor.exe",
+            r"%LOCALAPPDATA%\Cursor\Cursor.exe",
+            r"%PROGRAMFILES%\Cursor\Cursor.exe",
+            r"%PROGRAMFILES(X86)%\Cursor\Cursor.exe",
+        ],
+        'code': [
+            r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe",
+            r"%PROGRAMFILES%\Microsoft VS Code\Code.exe",
+            r"%PROGRAMFILES(X86)%\Microsoft VS Code\Code.exe",
+        ],
+        'windsurf': [
+            r"%LOCALAPPDATA%\Programs\Windsurf\Windsurf.exe",
+            r"%PROGRAMFILES%\Windsurf\Windsurf.exe",
+        ],
+        'zed': [
+            r"%LOCALAPPDATA%\Programs\Zed\Zed.exe",
+            r"%PROGRAMFILES%\Zed\Zed.exe",
+        ]
+    }
+
+    if editor not in editor_paths:
+        return None
+
+    for path in editor_paths[editor]:
+        expanded_path = os.path.expandvars(path)
+        if os.path.isfile(expanded_path):
+            return expanded_path
     return None
 
-def try_open_cursor_windows(file_path: str, quiet: bool = False) -> bool:
+def try_open_in_editor_windows(editor: str, file_path: str, quiet: bool = False) -> bool:
     """
-    Try multiple methods to open Cursor on Windows.
+    Try to open a file in the specified editor on Windows.
     Returns True if successful, False otherwise.
     """
-    # Method 1: Try using 'cursor' command if it's in PATH
-    if shutil.which('cursor') is not None:
+    editor_path = find_editor_on_windows(editor)
+    if editor_path and editor_path.lower().endswith(f'{editor}.exe'):
         try:
-            subprocess.run(['cursor', file_path], check=True)
-            print_progress(f"Opened {file_path} in Cursor using cursor command", quiet)
-            return True
-        except subprocess.CalledProcessError:
-            pass
+            # Get the current directory and absolute file path
+            current_dir = os.path.dirname(os.path.abspath(file_path))
+            abs_file_path = os.path.abspath(file_path)
 
-    # Method 2: Try direct executable path
-    cursor_path = find_cursor_on_windows()
-    if cursor_path:
-        try:
-            subprocess.run([cursor_path, file_path], check=True)
-            print_progress(f"Opened {file_path} in Cursor using direct path", quiet)
+            # First open the folder, then the file
+            with open(os.devnull, 'w') as devnull:
+                subprocess.Popen([editor_path, current_dir], stderr=devnull)
+                subprocess.Popen([editor_path, abs_file_path], stderr=devnull)
+            print_progress(f"Opened {file_path} in {editor.title()}", quiet)
             return True
-        except subprocess.CalledProcessError:
-            pass
 
-    # Method 3: Try PowerShell Start-Process
-    try:
-        if cursor_path:
-            subprocess.run(['powershell', '-Command', f'Start-Process "{cursor_path}" -ArgumentList "{file_path}"'], check=True)
-            print_progress(f"Opened {file_path} in Cursor using PowerShell", quiet)
-            return True
-    except subprocess.CalledProcessError:
-        pass
+        except (subprocess.SubprocessError, OSError):
+            # Try CLI script for editors that have one (like Cursor)
+            if editor == 'cursor':
+                cli_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js")
+                if os.path.isfile(cli_path):
+                    try:
+                        with open(os.devnull, 'w') as devnull:
+                            subprocess.Popen(['node', cli_path, current_dir], stderr=devnull)
+                            subprocess.Popen(['node', cli_path, abs_file_path], stderr=devnull)
+                        print_progress(f"Opened {file_path} in {editor.title()} using CLI", quiet)
+                        return True
+                    except (subprocess.SubprocessError, OSError):
+                        pass
 
-    # Method 4: Try os.startfile with direct association
-    try:
-        if cursor_path:
-            os.startfile(file_path, cursor_path)
-            print_progress(f"Opened {file_path} in Cursor using startfile", quiet)
-            return True
-    except (AttributeError, OSError):
-        pass
-
-    # Method 5: Try node directly with CLI script if it exists
-    cli_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js")
-    if os.path.isfile(cli_path):
-        try:
-            subprocess.run(['node', cli_path, file_path], check=True)
-            print_progress(f"Opened {file_path} in Cursor using Node CLI", quiet)
-            return True
-        except subprocess.CalledProcessError:
-            pass
-
+    # If all methods fail, return False
+    if not quiet:
+        print_warning(f"Could not open {editor.title()}. Please make sure it is installed correctly.")
     return False
+
+def find_editor_path(editor: str) -> str:
+    """
+    Find the editor executable by checking common installation locations.
+    Returns the path to the executable if found, None otherwise.
+    """
+    if sys.platform == 'win32':
+        return find_editor_on_windows(editor)
+
+    # Common paths for Mac and Linux
+    editor_paths = {
+        'cursor': [
+            # Mac paths
+            '/Applications/Cursor.app/Contents/MacOS/Cursor',
+            # Linux paths
+            '/usr/bin/cursor',
+            '/usr/local/bin/cursor',
+            '~/.local/bin/cursor'
+        ],
+        'code': [
+            # Mac paths
+            '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code',
+            # Linux paths
+            '/usr/bin/code',
+            '/usr/local/bin/code',
+            '~/.local/bin/code'
+        ],
+        'windsurf': [
+            # Mac paths
+            '/Applications/Windsurf.app/Contents/MacOS/Windsurf',
+            # Linux paths
+            '/usr/bin/windsurf',
+            '/usr/local/bin/windsurf',
+            '~/.local/bin/windsurf'
+        ],
+        'zed': [
+            # Mac paths
+            '/Applications/Zed.app/Contents/MacOS/Zed',
+            # Linux paths
+            '/usr/bin/zed',
+            '/usr/local/bin/zed',
+            '~/.local/bin/zed'
+        ]
+    }
+
+    if editor not in editor_paths:
+        return None
+
+    # First, check if the command is in PATH
+    path_cmd = shutil.which(editor)
+    if path_cmd:
+        return path_cmd
+
+    # Then check common installation locations
+    for path in editor_paths[editor]:
+        expanded_path = os.path.expanduser(path)
+        if os.path.isfile(expanded_path):
+            return expanded_path
+
+    return None
 
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
-    Attempts to open the file in the specified editor with fallback chain.
-    Primary: cursor
-    Fallback 1: VS Code
-    Fallback 2: System default text editor
+    Attempts to open the file in the specified editor.
+    Handles platform-specific paths and commands.
     """
-    # Try the specified editor first
+    editor = editor.lower()
     editor_commands = {
         'cursor': 'cursor',
         'code': 'code',
@@ -416,63 +546,70 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
         'zed': 'zed',
         'xcode': 'xed'  # xed is the command line tool for Xcode
     }
-    
-    # If editor is cursor, implement the fallback chain
-    if editor.lower() == 'cursor':
-        editors_to_try = ['cursor', 'code']
-        
-        # Special handling for Cursor on Windows
-        if sys.platform == 'win32' and editors_to_try[0] == 'cursor':
-            if try_open_cursor_windows(file_path, quiet):
-                return
-            # If all Cursor methods failed, continue with fallback chain
-            editors_to_try = editors_to_try[1:]  # Remove 'cursor' from fallback chain
-        
-        # Try remaining editors in the chain
-        for ed in editors_to_try:
-            if shutil.which(ed) is not None:
-                try:
-                    subprocess.run([ed, file_path], check=True)
-                    print_progress(f"Opened {file_path} in {ed.title()}", quiet)
-                    return
-                except subprocess.CalledProcessError:
-                    continue
-        
-        # If no editor worked, try system default
-        try:
-            if sys.platform == 'darwin':  # macOS
-                subprocess.run(['open', file_path], check=True)
-            elif sys.platform == 'win32':  # Windows
-                os.startfile(file_path)
-            else:  # Linux and others
-                subprocess.run(['xdg-open', file_path], check=True)
-            print_progress(f"Opened {file_path} in system default editor", quiet)
+
+    # Special handling for Xcode on non-macOS systems
+    if editor == 'xcode' and sys.platform != 'darwin':
+        print_error("Xcode is only available on macOS", quiet)
+        return
+
+    # Handle Windows-specific cases
+    if sys.platform == 'win32' and editor in ['cursor', 'code', 'windsurf', 'zed']:
+        if try_open_in_editor_windows(editor, file_path, quiet):
             return
-        except (subprocess.CalledProcessError, FileNotFoundError, AttributeError):
-            print_error(f"Failed to open file in any editor", quiet)
-            return
-    
-    # For non-cursor editors, just try the specified editor
-    editor_cmd = editor_commands.get(editor.lower())
+
+    # For non-Windows systems
+    editor_cmd = editor_commands.get(editor)
     if not editor_cmd:
         print_error(f"Unsupported editor: {editor}. Supported editors are: {', '.join(editor_commands.keys())}", quiet)
         return
-    
-    # Special handling for Xcode on non-macOS systems
-    if editor.lower() == 'xcode' and sys.platform != 'darwin':
-        print_error("Xcode is only available on macOS", quiet)
-        return
-    
-    if shutil.which(editor_cmd) is not None:
+
+    # Try to find the editor executable
+    editor_path = find_editor_path(editor)
+    if editor_path:
         try:
-            subprocess.run([editor_cmd, file_path], check=True)
+            # Get absolute paths
+            current_dir = os.path.dirname(os.path.abspath(file_path))
+            abs_file_path = os.path.abspath(file_path)
+            
+            # Special handling for macOS .app bundles
+            if sys.platform == 'darwin' and editor != 'xcode':
+                # If it's an .app bundle executable, use the 'open' command
+                if '.app/Contents/MacOS' in editor_path:
+                    with open(os.devnull, 'w') as devnull:
+                        subprocess.Popen(['open', '-a', editor_path.split('/Contents/MacOS/')[0], current_dir], stderr=devnull)
+                        subprocess.Popen(['open', '-a', editor_path.split('/Contents/MacOS/')[0], abs_file_path], stderr=devnull)
+                else:
+                    with open(os.devnull, 'w') as devnull:
+                        subprocess.Popen([editor_path, current_dir], stderr=devnull)
+                        subprocess.Popen([editor_path, abs_file_path], stderr=devnull)
+            else:
+                # Linux or non-app macOS executables
+                with open(os.devnull, 'w') as devnull:
+                    subprocess.Popen([editor_path, current_dir], stderr=devnull)
+                    subprocess.Popen([editor_path, abs_file_path], stderr=devnull)
+            
             print_progress(f"Opened {file_path} in {editor.title()}", quiet)
-        except subprocess.CalledProcessError:
-            print_error(f"Failed to open in {editor.title()}. Is {editor.title()} running?", quiet)
-    else:
-        print_warning(f"{editor.title()} command line tool not found. Please make sure {editor.title()} is installed and the command line tool is available.", quiet)
+            return
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+    # If everything fails, try system default
+    try:
+        if sys.platform == 'darwin':  # macOS
+            subprocess.run(['open', file_path], check=True)
+        elif sys.platform == 'win32':  # Windows
+            os.startfile(file_path)
+        else:  # Linux and others
+            subprocess.run(['xdg-open', file_path], check=True)
+        print_progress(f"Opened {file_path} in system default editor", quiet)
+    except (subprocess.SubprocessError, FileNotFoundError, AttributeError):
+        print_error(f"Failed to open file in any editor", quiet)
+        return
 
 def main():
+    # Do first-time setup if needed
+    do_first_time_setup()
+    
     parser = argparse.ArgumentParser(
         description='Create a snapshot of code files in specified directories, optimized for LLM context.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -503,6 +640,8 @@ def main():
                       help='Maximum directory depth (0 for no limit)')
     parser.add_argument('-q', '--quiet', action='store_true',
                       help='Suppress progress output and non-error messages')
+    parser.add_argument('--no-copy', action='store_true',
+                      help='Do not copy the snapshot to clipboard')
 
     args = parser.parse_args()
     
@@ -518,6 +657,12 @@ def main():
     if args.set_default_exclude_dirs:
         success = set_default_exclude_dirs(args.set_default_exclude_dirs, args.quiet)
         sys.exit(0 if success else 1)
+    
+    # Temporarily override auto_copy setting if --no-copy is used
+    if args.no_copy:
+        config = get_config()
+        config['auto_copy_to_clipboard'] = False
+        save_config(config)
     
     # Use values from args or config
     editor = args.editor or get_default_editor()

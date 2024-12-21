@@ -25,7 +25,8 @@ classifiers = [
 requires-python = ">=3.7"
 dependencies = [
     "pathlib",
-    "termcolor>=2.3.0"
+    "termcolor>=2.3.0",
+    "pyperclip>=1.8.2",
 ]
 
 [project.urls]

@@ -2,7 +2,6 @@
 
 SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. By default it automatically opens the snapshotted code file in Cursor so that on the ChatGPT Desktop app your code repository is 'autofocused' and you can start asking ChatGPT questions right away, no copy and pasting required. You can configure it to open in other editors as well.
 
-
 SnapGPT crawls through your directories, gathers all relevant code files (based on your config and preferences), and concatenates them into one text file for easy reading or chat-pasting.
 
 ## Table of Contents
@@ -28,20 +27,39 @@ SnapGPT crawls through your directories, gathers all relevant code files (based 
 
 ## Installation
 
-Requires Python 3.7+  
-Tested on Linux, macOS, and Windows.
+### macOS (Recommended)
 
-Install SnapGPT directly from PyPI:
-
+Using Homebrew:
 ```bash
-pip install snapgpt
+brew install halfprice06/homebrew-tap-snapgpt
 ```
 
-Or if you prefer user-level install:
+Using pipx (recommended for Python CLI tools):
+```bash
+# Install pipx if you haven't already
+brew install pipx
+pipx ensurepath
 
+# Install snapgpt
+pipx install snapgpt
+```
+
+### Other Methods
+
+Using pip (not recommended for macOS):
 ```bash
 pip install --user snapgpt
 ```
+
+Using a virtual environment:
+```bash
+python3 -m venv myenv
+source myenv/bin/activate
+pip install snapgpt
+```
+
+Requires Python 3.7+  
+Tested on Linux, macOS, and Windows.
 
 ## Quick Start
 

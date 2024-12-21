@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="snapgpt",
-    version="0.1.1",
+    version="0.1.2",
     author="Daniel Price",
     author_email="",
     description="A tool to create readable snapshots of your codebase",
@@ -14,10 +14,6 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/halfprice06/snapgpt",
     packages=find_packages(),
-    install_requires=[
-        "pathlib",
-        "termcolor>=2.3.0",
-    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Console",

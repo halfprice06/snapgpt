@@ -65,7 +65,7 @@ def get_config():
                 config = json.load(f)
             return {**DEFAULT_CONFIG, **config}
         except (json.JSONDecodeError, IOError):
-            return DEFAULT_CONFIG
+            pass
     return DEFAULT_CONFIG
 
 
@@ -521,10 +521,12 @@ def main():
     subparsers = parser.add_subparsers(dest='subcommand', title='additional commands')
 
     # Watch subcommand
-    watch_parser = subparsers.add_parser('watch', 
+    watch_parser = subparsers.add_parser(
+        'watch',
         help='Watch the directory for changes, auto-update snapshot.',
         description='Watch your codebase and automatically update the snapshot when files change.',
-        formatter_class=CustomFormatter)
+        formatter_class=CustomFormatter
+    )
     watch_parser.add_argument('-d', '--directories', nargs='+', default=["."],
                               metavar='DIR',
                               help='List of directories to scan')
@@ -569,9 +571,15 @@ def main():
 
     # Shared logic for running the incremental snapshot
     def run_incremental_snapshot(
-        directories, files, output_file,
-        extensions, exclude_dirs, max_size_mb, max_depth,
-        quiet
+        directories,
+        files,
+        output_file,
+        extensions,
+        exclude_dirs,
+        max_size_mb,
+        max_depth,
+        quiet,
+        skip_open_in_editor=False
     ):
         exts = extensions or get_default_extensions()
         exc_dirs = exclude_dirs or get_default_exclude_dirs()
@@ -592,8 +600,7 @@ def main():
                 max_size, max_depth, quiet
             )
 
-        # Make sure we confirm scanning non-git or system directories for the first folder
-        # (just like in the old code)
+        # Confirm scanning non-git/system directories for the first folder
         for directory in directories:
             abs_dir = os.path.abspath(directory)
             if is_system_directory(abs_dir):
@@ -609,9 +616,8 @@ def main():
                     print_progress("Cancelled.", quiet)
                     sys.exit(0)
 
-        # We define a small function that returns the fully composed text
+        # Build text from files + directory tree
         def generate_full_text(file_paths):
-            # Rebuild directory tree each time for clarity
             d_tree, _ = print_directory_tree_and_get_files(
                 directories, set(exc_dirs), set(e.lower() for e in exts),
                 max_size, max_depth, quiet
@@ -620,6 +626,7 @@ def main():
 
         project_root = Path(directories[0]).resolve()
         output_path = Path(output_file).resolve()
+
         incremental_snapshot(
             project_root=project_root,
             file_paths=final_files,
@@ -628,12 +635,13 @@ def main():
             quiet=quiet
         )
 
-        # Optionally open in editor
-        editor = get_default_editor()
-        open_in_editor(str(output_path), editor, quiet=quiet)
+        # Open in editor only if skip_open_in_editor is False
+        if not skip_open_in_editor:
+            editor = get_default_editor()
+            open_in_editor(str(output_path), editor, quiet=quiet)
 
     if not args.subcommand:
-        # **Default** to incremental mode
+        # Default to incremental mode
         run_incremental_snapshot(
             directories=["."],
             files=None,
@@ -660,30 +668,37 @@ def main():
         sys.exit(0)
 
     elif args.subcommand == 'watch':
-        # watch mode - unchanged from previous
+        # watch mode
         exts = args.extensions or get_default_extensions()
         exc_dirs = args.exclude_dirs or get_default_exclude_dirs()
         max_size = int(args.max_size * 1_000_000) if args.max_size > 0 else 0
         project_root = Path(args.directories[0]).resolve()
         output_path = Path(args.output).resolve()
 
-        # We'll define a function that re-runs the incremental snapshot each time
+        # Track whether we've opened the file once
+        first_run = True
+
         def do_incremental():
+            nonlocal first_run
+            # Only open the snapshot on the very first run
             run_incremental_snapshot(
                 directories=args.directories,
-                files=None,  # Because watch typically scans the entire directory
+                files=None,
                 output_file=output_path,
                 extensions=exts,
                 exclude_dirs=exc_dirs,
                 max_size_mb=args.max_size,
                 max_depth=args.max_depth,
-                quiet=args.quiet
+                quiet=args.quiet,
+                skip_open_in_editor=not first_run
             )
+            # After the first run, set this to False
+            first_run = False
 
-        # Run once initially
+        # Run once initially (will open the editor)
         do_incremental()
 
-        # Helper: decide if a file is included for watch triggers
+        # Decide if a file is included for watch triggers
         def is_included_func(file_path: Path) -> bool:
             # Extension check
             if file_path.suffix.lower() not in [e.lower() for e in exts]:
@@ -695,9 +710,8 @@ def main():
                     if Path(part).match(exc):
                         return False
             # Size check
-            if max_size > 0:
-                if file_path.stat().st_size > max_size:
-                    return False
+            if max_size > 0 and file_path.stat().st_size > max_size:
+                return False
             return True
 
         watch_directory(

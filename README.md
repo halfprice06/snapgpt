@@ -31,7 +31,7 @@ SnapGPT crawls through your directories, gathers all relevant code files (based 
 
 Using Homebrew:
 ```bash
-brew install halfprice06/homebrew-tap-snapgpt
+brew install halfprice06/homebrew-tap-snapgpt/snapgpt
 ```
 
 Using pipx (recommended for Python CLI tools):

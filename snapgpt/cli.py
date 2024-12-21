@@ -330,21 +330,50 @@ def create_code_snapshot(
 
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
-    Attempts to open the file in the specified editor.
-    Supported editors: cursor, code, windsurfer
+    Attempts to open the file in the specified editor with fallback chain.
+    Primary: cursor
+    Fallback 1: VS Code
+    Fallback 2: System default text editor
     """
+    # Try the specified editor first
     editor_commands = {
         'cursor': 'cursor',
         'code': 'code',
         'windsurfer': 'windsurfer'
     }
     
+    # If editor is cursor, implement the fallback chain
+    if editor.lower() == 'cursor':
+        editors_to_try = ['cursor', 'code']
+        for ed in editors_to_try:
+            if shutil.which(ed) is not None:
+                try:
+                    subprocess.run([ed, file_path], check=True)
+                    print_progress(f"Opened {file_path} in {ed.title()}", quiet)
+                    return
+                except subprocess.CalledProcessError:
+                    continue
+        
+        # If neither cursor nor code worked, try system default
+        try:
+            if sys.platform == 'darwin':  # macOS
+                subprocess.run(['open', file_path], check=True)
+            elif sys.platform == 'win32':  # Windows
+                os.startfile(file_path)
+            else:  # Linux and others
+                subprocess.run(['xdg-open', file_path], check=True)
+            print_progress(f"Opened {file_path} in system default editor", quiet)
+            return
+        except (subprocess.CalledProcessError, FileNotFoundError, AttributeError):
+            print_error(f"Failed to open file in any editor", quiet)
+            return
+    
+    # For non-cursor editors, just try the specified editor
     editor_cmd = editor_commands.get(editor.lower())
     if not editor_cmd:
         print_error(f"Unsupported editor: {editor}. Supported editors are: {', '.join(editor_commands.keys())}", quiet)
         return
     
-    # Check if editor command is available
     if shutil.which(editor_cmd) is not None:
         try:
             subprocess.run([editor_cmd, file_path], check=True)

@@ -1,6 +1,6 @@
 # SnapGPT 📸
 
-SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. By default, SnapGPT automatically opens the snapshotted code file in **Cursor**, so that on the ChatGPT Desktop app your code repository is "autofocused" and you can start asking ChatGPT questions right away—no copy and pasting required. You can configure it to open in other editors as well (VS Code, Windsurfer, or any other editor).
+SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. By default, SnapGPT automatically opens the snapshotted code file in **Cursor**, so that on the ChatGPT Desktop app your code repository is "autofocused" and you can start asking ChatGPT questions right away—no copy and pasting required. You can configure it to open in other editors as well (VS Code, Windsurf, Zed, Xcode, or any other editor).
 
 SnapGPT crawls through your directories, gathers all relevant code files (based on your config and preferences), and concatenates them into one text file for easy reading or chat-pasting.
 
@@ -23,7 +23,7 @@ SnapGPT crawls through your directories, gathers all relevant code files (based 
 * Collect code from multiple directories into a single output file
 * Automatically exclude certain directories (e.g., `__pycache__`, `.git`, `node_modules`)
 * Configurable file extensions (e.g., `.py`, `.js`, `.tsx`) so you can include exactly what you want
-* **Auto-open the snapshot** in an editor of your choice (Cursor, VS Code, Windsurfer, or fallback to your system default)
+* **Auto-open the snapshot** in an editor of your choice (Cursor, VS Code, Windsurf, Zed, Xcode, or fallback to your system default)
 * Lightweight and has minimal dependencies (primarily `termcolor`)
 * **Local only**: SnapGPT does not make any network calls, keeping your code fully private
 
@@ -100,7 +100,7 @@ snapgpt [options]
 | `-e, --extensions` | File extensions to include (e.g. -e .py .js .md) |
 | `--exclude-dirs` | Directories to exclude from scanning (e.g. --exclude-dirs .git node_modules dist) |
 | `--no-open` | Do not automatically open the snapshot after creation |
-| `--editor {cursor,code,windsurfer}` | Editor to open the snapshot in (overrides your default config) |
+| `--editor {cursor,code,windsurf,zed,xcode}` | Editor to open the snapshot in (overrides your default config) |
 | `--set-default-editor` | Set the default editor globally, then exit (e.g. snapgpt --set-default-editor code) |
 | `--set-default-extensions` | Set the default file extensions globally, then exit (e.g. snapgpt --set-default-extensions .py .md) |
 | `--set-default-exclude-dirs` | Set the default excluded directories globally, then exit |
@@ -144,7 +144,7 @@ Example config (simplified):
 ```
 
 You can update these values persistently using:
-* `snapgpt --set-default-editor [cursor|code|windsurfer]`
+* `snapgpt --set-default-editor [cursor|code|windsurf|zed|xcode]`
 * `snapgpt --set-default-extensions .py .js .md`
 * `snapgpt --set-default-exclude-dirs .git node_modules build`
 
@@ -168,7 +168,7 @@ On some systems, certain directories may be locked down. SnapGPT will skip unrea
 If your project has unusual file extensions, add them with `--extensions .mjs .hbs` or via the default config.
 
 4. **Editor Not Opening**
-Confirm your chosen editor (Cursor, VS Code, or Windsurfer) is installed and accessible from the command line. On Windows, SnapGPT will attempt various fallback methods if cursor is your default editor but not found in your PATH.
+Confirm your chosen editor (Cursor, VS Code, Windsurf, Zed, or Xcode) is installed and accessible from the command line. Note that Xcode is only available on macOS systems. On Windows, SnapGPT will attempt various fallback methods if cursor is your default editor but not found in your PATH.
 
 ## Contributing 🤝
 

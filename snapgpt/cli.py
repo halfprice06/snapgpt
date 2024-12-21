@@ -82,7 +82,7 @@ def get_default_exclude_dirs():
 def set_default_editor(editor: str, quiet: bool = False) -> bool:
     """Set the default editor in config file."""
     editor = editor.lower()
-    valid_editors = {'cursor', 'code', 'windsurfer'}
+    valid_editors = {'cursor', 'code', 'windsurf', 'zed', 'xcode'}
     
     if editor not in valid_editors:
         print_error(f"Invalid editor: {editor}. Valid options are: {', '.join(valid_editors)}", quiet)
@@ -412,7 +412,9 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
     editor_commands = {
         'cursor': 'cursor',
         'code': 'code',
-        'windsurfer': 'windsurfer'
+        'windsurf': 'windsurf',
+        'zed': 'zed',
+        'xcode': 'xed'  # xed is the command line tool for Xcode
     }
     
     # If editor is cursor, implement the fallback chain
@@ -456,6 +458,11 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
         print_error(f"Unsupported editor: {editor}. Supported editors are: {', '.join(editor_commands.keys())}", quiet)
         return
     
+    # Special handling for Xcode on non-macOS systems
+    if editor.lower() == 'xcode' and sys.platform != 'darwin':
+        print_error("Xcode is only available on macOS", quiet)
+        return
+    
     if shutil.which(editor_cmd) is not None:
         try:
             subprocess.run([editor_cmd, file_path], check=True)
@@ -482,9 +489,9 @@ def main():
                       help='Directories to exclude from scanning')
     parser.add_argument('--no-open', action='store_true',
                       help='Do not automatically open the snapshot in an editor')
-    parser.add_argument('--editor', choices=['cursor', 'code', 'windsurfer'], default=None,
+    parser.add_argument('--editor', choices=['cursor', 'code', 'windsurf', 'zed', 'xcode'], default=None,
                       help='Editor to open the snapshot in (default: from config)')
-    parser.add_argument('--set-default-editor', choices=['cursor', 'code', 'windsurfer'],
+    parser.add_argument('--set-default-editor', choices=['cursor', 'code', 'windsurf', 'zed', 'xcode'],
                       help='Set the default editor and exit')
     parser.add_argument('--set-default-extensions', nargs='+',
                       help='Set the default file extensions and exit')

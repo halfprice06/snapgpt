@@ -1,6 +1,9 @@
 # SnapGPT
 
-SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. SnapGPT crawls through your directories, gathers all relevant code files (based on your config and preferences), and concatenates them into one text file for easy reading or chat-pasting.
+SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. By default it automatically opens the snapshotted code file in Cursor so that on the ChatGPT Desktop app your code repository is 'autofocused' and you can start asking ChatGPT questions right away, no copy and pasting required. You can configure it to open in other editors as well.
+
+
+SnapGPT crawls through your directories, gathers all relevant code files (based on your config and preferences), and concatenates them into one text file for easy reading or chat-pasting.
 
 ## Table of Contents
 * [Features](#features)

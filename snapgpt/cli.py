@@ -328,6 +328,23 @@ def create_code_snapshot(
     print_progress(f"\nCode snapshot created at: {output_path}", quiet)
     return str(output_path)
 
+def find_cursor_on_windows():
+    """
+    Find the Cursor executable on Windows by checking common installation locations.
+    Returns the path to Cursor.exe if found, None otherwise.
+    """
+    possible_paths = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\Cursor.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Cursor\Cursor.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Cursor\Cursor.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Cursor\Cursor.exe"),
+    ]
+    
+    for path in possible_paths:
+        if os.path.isfile(path):
+            return path
+    return None
+
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
     Attempts to open the file in the specified editor with fallback chain.
@@ -345,6 +362,21 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
     # If editor is cursor, implement the fallback chain
     if editor.lower() == 'cursor':
         editors_to_try = ['cursor', 'code']
+        
+        # Special handling for Cursor on Windows
+        if sys.platform == 'win32' and editors_to_try[0] == 'cursor':
+            cursor_path = find_cursor_on_windows()
+            if cursor_path:
+                try:
+                    subprocess.run([cursor_path, file_path], check=True)
+                    print_progress(f"Opened {file_path} in Cursor", quiet)
+                    return
+                except subprocess.CalledProcessError:
+                    pass
+            # If Cursor not found or failed, continue with fallback chain
+            editors_to_try = editors_to_try[1:]  # Remove 'cursor' from fallback chain
+        
+        # Try remaining editors in the chain
         for ed in editors_to_try:
             if shutil.which(ed) is not None:
                 try:
@@ -354,7 +386,7 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
                 except subprocess.CalledProcessError:
                     continue
         
-        # If neither cursor nor code worked, try system default
+        # If no editor worked, try system default
         try:
             if sys.platform == 'darwin':  # macOS
                 subprocess.run(['open', file_path], check=True)

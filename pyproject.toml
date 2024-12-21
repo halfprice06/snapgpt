@@ -19,14 +19,14 @@ classifiers = [
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 requires-python = ">=3.7"
 dependencies = [
     "pathlib",
     "termcolor>=2.3.0",
     "pyperclip>=1.8.2",
+    "watchdog>=2.1.0"
 ]
 
 [project.urls]

@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="snapgpt",
-    version="0.1.2",
+    version="0.2.0",
     author="Daniel Price",
     author_email="",
     description="A tool to create readable snapshots of your codebase",

@@ -292,8 +292,50 @@ def do_first_time_setup(quiet: bool = False) -> None:
         save_config(config)
         print("\nSetup complete! You can change these settings later using command line options.\n")
 
+def is_system_directory(path: str) -> bool:
+    """
+    Check if the given path is a system directory that should trigger a warning.
+    """
+    system_dirs = {
+        # Windows system directories
+        r"C:\Windows", r"C:\Program Files", r"C:\Program Files (x86)", r"C:\Users",
+        # macOS system directories
+        "/System", "/Library", "/Users", "/Applications", "/usr", "/bin", "/sbin",
+        # Linux system directories
+        "/etc", "/var", "/opt", "/home", "/root", "/usr", "/bin", "/sbin", "/lib", "/dev"
+    }
+    
+    # Convert path to absolute and normalize
+    abs_path = os.path.abspath(path)
+    
+    # Check if the path is or is inside a system directory
+    for sys_dir in system_dirs:
+        try:
+            if sys_dir in abs_path or os.path.commonpath([sys_dir, abs_path]) == sys_dir:
+                return True
+        except ValueError:
+            # commonpath raises ValueError if paths are on different drives
+            continue
+    return False
+
+def is_git_repository(path: str) -> bool:
+    """
+    Check if the given path is inside a Git repository.
+    """
+    try:
+        # Start from the given path and traverse up until we find .git
+        current = os.path.abspath(path)
+        while current != os.path.dirname(current):  # Stop at root
+            if os.path.exists(os.path.join(current, '.git')):
+                return True
+            current = os.path.dirname(current)
+        return False
+    except Exception:
+        return False
+
 def create_code_snapshot(
     directories=["."],
+    files=None,
     output_file="full_code_snapshot.txt",
     include_file_extensions=(
         # Core code files
@@ -321,8 +363,8 @@ def create_code_snapshot(
         # Logs
         "logs", "log"
     },
-    max_file_size=0,  # 0 means no limit
-    max_depth=0,      # 0 means no limit
+    max_file_size=0,
+    max_depth=0,
     quiet=False
 ):
     """
@@ -332,12 +374,57 @@ def create_code_snapshot(
     """
     print_progress(f"Processing directories: {', '.join(directories)}", quiet)
     
+    # Check directories for warnings
+    for directory in directories:
+        abs_dir = os.path.abspath(directory)
+        
+        # Check for system directories
+        if is_system_directory(abs_dir):
+            print_warning(f"Warning: '{directory}' appears to be a system directory or subdirectory. Scanning system directories is not recommended.", quiet)
+            user_input = input("Do you want to continue? (y/n): ").lower() if not quiet else 'n'
+            if user_input != 'y':
+                print_progress("Operation cancelled by user.", quiet)
+                sys.exit(0)
+        
+        # Check if not in a Git repository
+        if not is_git_repository(abs_dir):
+            print_warning(f"Warning: '{directory}' is not part of a Git repository. This might not be a code project directory.", quiet)
+            user_input = input("Do you want to continue? (y/n): ").lower() if not quiet else 'n'
+            if user_input != 'y':
+                print_progress("Operation cancelled by user.", quiet)
+                sys.exit(0)
+    
     # Get clipboard preference from config
     config = get_config()
     auto_copy = config.get('auto_copy_to_clipboard', True)
     
     # Resolve directories relative to current working directory
     resolved_dirs = [Path(d).resolve() for d in directories]
+
+    # If specific files are provided, use those instead of scanning directories
+    if files:
+        resolved_files = [Path(f).resolve() for f in files]
+        file_order = []
+        for file in resolved_files:
+            if not file.exists():
+                print_warning(f"File not found: {file}", quiet)
+                continue
+            if file.suffix.lower() in include_file_extensions:
+                file_order.append(file)
+            else:
+                print_warning(f"Skipping file with unsupported extension: {file}", quiet)
+        
+        # Create a simplified tree for specific files
+        tree_output = ["# Selected Files", ""]
+        for file in file_order:
+            tree_output.append(f"└── {file.name}")
+        directory_tree = "\n".join(tree_output)
+    else:
+        # Use the existing directory tree creation for directories
+        directory_tree, file_order = create_directory_tree(
+            resolved_dirs, exclude_dirs, include_file_extensions,
+            max_file_size, max_depth, quiet
+        )
 
     # Prepare output file
     output_path = Path(output_file).resolve()
@@ -348,10 +435,6 @@ def create_code_snapshot(
     
     with open(output_path, "w", encoding="utf-8") as out_f:
         # First, add the directory tree and get the file order
-        directory_tree, file_order = create_directory_tree(
-            resolved_dirs, exclude_dirs, include_file_extensions,
-            max_file_size, max_depth, quiet
-        )
         out_f.write(directory_tree)
         content_buffer.append(directory_tree)
         
@@ -616,6 +699,8 @@ def main():
     )
     parser.add_argument('-d', '--directories', nargs='+', default=["."],
                       help='List of directories to scan')
+    parser.add_argument('-f', '--files', nargs='+',
+                      help='List of specific files to include (overrides directory scanning)')
     parser.add_argument('-o', '--output', default="full_code_snapshot.txt",
                       help='Output file path')
     parser.add_argument('-e', '--extensions', nargs='+',
@@ -671,6 +756,7 @@ def main():
     
     output_path = create_code_snapshot(
         directories=args.directories,
+        files=args.files,  # Pass the files argument
         output_file=args.output,
         include_file_extensions=tuple(ext.lower() if ext.startswith('.') else f'.{ext.lower()}' for ext in extensions),
         exclude_dirs=set(exclude_dirs),

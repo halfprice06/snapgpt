@@ -21,7 +21,12 @@ SnapGPT crawls through your directories, gathers all relevant code files (based 
 
 ## Features ✨
 * Collect code from multiple directories into a single output file
+* Select specific files to include instead of scanning directories
 * Automatically exclude certain directories (e.g., `__pycache__`, `.git`, `node_modules`)
+* **Smart directory scanning safety**:
+  * Warns when scanning non-Git directories (helps prevent accidental scanning of non-project folders)
+  * Detects and warns about system directories (Windows, macOS, Linux) to prevent accidental system scanning
+  * Requires explicit confirmation before scanning sensitive directories
 * Configurable file extensions (e.g., `.py`, `.js`, `.tsx`) so you can include exactly what you want
 * **Auto-open the snapshot** in an editor of your choice (Cursor, VS Code, Windsurf, Zed, Xcode, or fallback to your system default)
 * **Auto-copy to clipboard** - Automatically copy the snapshot to your clipboard (configurable)
@@ -68,7 +73,7 @@ pip install snapgpt
 SnapGPT requires Python 3.7+.
 It is tested on Linux, macOS, and Windows.
 
-## Quick Start 🏃‍♂️
+## Quick Start 🏃‍
 
 When you run SnapGPT for the first time, you'll be greeted with a setup wizard:
 ```
@@ -115,6 +120,7 @@ snapgpt [options]
 | Option / Flag | Description |
 |--------------|-------------|
 | `-d, --directories` | List of directories to scan (default: .) |
+| `-f, --files` | List of specific files to include (overrides directory scanning) |
 | `-o, --output` | Output file path (default: full_code_snapshot.txt) |
 | `-e, --extensions` | File extensions to include (e.g. -e .py .js .md) |
 | `--exclude-dirs` | Directories to exclude from scanning |
@@ -130,14 +136,14 @@ snapgpt [options]
 
 ## Example Commands 💡
 
-1. Scan only the src and lib directories, exclude dist:
+1. Include specific files only:
 ```bash
-snapgpt -d src lib --exclude-dirs dist
+snapgpt -f src/main.py tests/test_main.py README.md
 ```
 
-2. Include only Python and Markdown files, and skip opening:
+2. Scan only the src and lib directories, exclude dist:
 ```bash
-snapgpt --extensions .py .md --no-open
+snapgpt -d src lib --exclude-dirs dist
 ```
 
 3. Set default editor to VS Code, then quit immediately:
@@ -173,23 +179,34 @@ You can update these values:
 ## Privacy and Security 🔒
 * **Local Only**: SnapGPT does not send your code to any external server or service. It simply reads files from your disk and consolidates them into a single text file.
 * **Editor Launch**: If you choose to open the snapshot automatically, SnapGPT will launch your local editor. No additional code upload or syncing occurs.
+* **Directory Safety Checks**:
+  * Warns when scanning directories that are not part of a Git repository to prevent accidental scanning of personal folders
+  * Detects and warns about system directories on Windows, macOS, and Linux
+  * Requires explicit confirmation before proceeding with potentially sensitive directories
+  * Default 'no' response in quiet mode for safety
 
 ## Troubleshooting 🔧
 
-1. **Command Not Found**
+1. **Git Repository Warning**
+When scanning a directory that contains a `.git` folder, SnapGPT will warn you that you might be scanning more files than intended. You can:
+- Choose to continue by typing 'y'
+- Cancel and use more specific paths with `-d` or `-f`
+- Use `--max-depth` to limit the scan depth
+
+2. **Command Not Found**
 Make sure you installed SnapGPT in a directory on your PATH. Try:
 ```bash
 pip show snapgpt
 ```
 If it's not in your PATH, you may need to use `python -m snapgpt ...` or add the script's location to your PATH.
 
-2. **Permission Denied**
+3. **Permission Denied**
 On some systems, certain directories may be locked down. SnapGPT will skip unreadable directories and display a warning.
 
-3. **No Files Found**
+4. **No Files Found**
 If your project has unusual file extensions, add them with `--extensions .mjs .hbs` or via the default config.
 
-4. **Editor Not Opening**
+5. **Editor Not Opening**
 Confirm your chosen editor (Cursor, VS Code, Windsurf, Zed, or Xcode) is installed and accessible from the command line. Note that Xcode is only available on macOS systems. On Windows, SnapGPT will attempt various fallback methods if cursor is your default editor but not found in your PATH.
 
 ## Contributing 🤝

@@ -48,6 +48,7 @@ venv.bak/
 !requirements.txt
 !LICENSE.txt
 !README.txt
+.snapgpt_index
 
 # Test directories
 test_dir/

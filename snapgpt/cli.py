@@ -10,7 +10,6 @@ import json
 from typing import List, Set, Tuple
 
 from termcolor import colored, cprint  # for colored output
-import pyperclip  # for clipboard support
 
 # Import the new modules
 from .incremental import incremental_snapshot

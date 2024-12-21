@@ -338,12 +338,68 @@ def find_cursor_on_windows():
         os.path.expandvars(r"%LOCALAPPDATA%\Cursor\Cursor.exe"),
         os.path.expandvars(r"%PROGRAMFILES%\Cursor\Cursor.exe"),
         os.path.expandvars(r"%PROGRAMFILES(X86)%\Cursor\Cursor.exe"),
+        # Add the path from where 'cursor' command might be symlinked
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js"),
     ]
     
     for path in possible_paths:
         if os.path.isfile(path):
             return path
     return None
+
+def try_open_cursor_windows(file_path: str, quiet: bool = False) -> bool:
+    """
+    Try multiple methods to open Cursor on Windows.
+    Returns True if successful, False otherwise.
+    """
+    # Method 1: Try using 'cursor' command if it's in PATH
+    if shutil.which('cursor') is not None:
+        try:
+            subprocess.run(['cursor', file_path], check=True)
+            print_progress(f"Opened {file_path} in Cursor using cursor command", quiet)
+            return True
+        except subprocess.CalledProcessError:
+            pass
+
+    # Method 2: Try direct executable path
+    cursor_path = find_cursor_on_windows()
+    if cursor_path:
+        try:
+            subprocess.run([cursor_path, file_path], check=True)
+            print_progress(f"Opened {file_path} in Cursor using direct path", quiet)
+            return True
+        except subprocess.CalledProcessError:
+            pass
+
+    # Method 3: Try PowerShell Start-Process
+    try:
+        if cursor_path:
+            subprocess.run(['powershell', '-Command', f'Start-Process "{cursor_path}" -ArgumentList "{file_path}"'], check=True)
+            print_progress(f"Opened {file_path} in Cursor using PowerShell", quiet)
+            return True
+    except subprocess.CalledProcessError:
+        pass
+
+    # Method 4: Try os.startfile with direct association
+    try:
+        if cursor_path:
+            os.startfile(file_path, cursor_path)
+            print_progress(f"Opened {file_path} in Cursor using startfile", quiet)
+            return True
+    except (AttributeError, OSError):
+        pass
+
+    # Method 5: Try node directly with CLI script if it exists
+    cli_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js")
+    if os.path.isfile(cli_path):
+        try:
+            subprocess.run(['node', cli_path, file_path], check=True)
+            print_progress(f"Opened {file_path} in Cursor using Node CLI", quiet)
+            return True
+        except subprocess.CalledProcessError:
+            pass
+
+    return False
 
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
@@ -365,15 +421,9 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
         
         # Special handling for Cursor on Windows
         if sys.platform == 'win32' and editors_to_try[0] == 'cursor':
-            cursor_path = find_cursor_on_windows()
-            if cursor_path:
-                try:
-                    subprocess.run([cursor_path, file_path], check=True)
-                    print_progress(f"Opened {file_path} in Cursor", quiet)
-                    return
-                except subprocess.CalledProcessError:
-                    pass
-            # If Cursor not found or failed, continue with fallback chain
+            if try_open_cursor_windows(file_path, quiet):
+                return
+            # If all Cursor methods failed, continue with fallback chain
             editors_to_try = editors_to_try[1:]  # Remove 'cursor' from fallback chain
         
         # Try remaining editors in the chain

@@ -17,16 +17,18 @@ class SnapGPTEventHandler(FileSystemEventHandler):
         super().__init__()
         self.project_root = project_root
         self.snapshot_func = snapshot_func  # Function that does incremental snapshot
-        self.is_included_func = is_included_func  # Tells us if a file should be included
+        self.is_included_func = is_included_func  # Checks if a file is relevant for snapshot
         self.quiet = quiet
         self.debounce_timers = {}
-        self.debounce_seconds = 1.0  # delay before re-snapping
+        self.debounce_seconds = 1.0  # short delay to avoid repeated triggers if a file is changing rapidly
 
     def on_modified(self, event):
         """Called when a file is modified."""
         if event.is_directory:
             return
         file_path = Path(event.src_path).resolve()
+
+        # If the file isn't included, do nothing
         if not self.is_included_func(file_path):
             return
 
@@ -42,13 +44,12 @@ class SnapGPTEventHandler(FileSystemEventHandler):
         """Called when a file is created."""
         if event.is_directory:
             return
-        self.on_modified(event)
+        self.on_modified(event)  # same logic for newly created files
 
     def handle_file_change(self, file_path: Path):
         """
-        Actually process the file change:
+        After the debounce delay, actually process the file change:
           1. Re-run the incremental snapshot function
-          2. Update .snapgpt_index
         """
         try:
             if not self.quiet:
@@ -62,7 +63,7 @@ def watch_directory(project_root: Path, snapshot_func, is_included_func, quiet=F
     """
     Set up the Watchdog observer to watch the entire project root for changes.
     snapshot_func() is a callback that regenerates the snapshot.
-    is_included_func() checks if a file belongs in the snapshot.
+    is_included_func() checks if a file belongs in the snapshot or not.
     """
     event_handler = SnapGPTEventHandler(project_root, snapshot_func, is_included_func, quiet=quiet)
     observer = Observer()
@@ -70,6 +71,7 @@ def watch_directory(project_root: Path, snapshot_func, is_included_func, quiet=F
     observer.start()
     if not quiet:
         print("[watch] Now watching for file changes. Press Ctrl+C to stop.")
+
     try:
         while True:
             time.sleep(1)

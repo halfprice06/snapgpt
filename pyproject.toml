@@ -26,7 +26,8 @@ dependencies = [
     "pathlib",
     "termcolor>=2.3.0",
     "pyperclip>=1.8.2",
-    "watchdog>=2.1.0"
+    "watchdog>=2.1.0",
+    "markitdown"
 ]
 
 [project.urls]
@@ -34,4 +35,4 @@ Homepage = "https://github.com/halfprice06/snapgpt"
 Repository = "https://github.com/halfprice06/snapgpt"
 
 [project.scripts]
-snapgpt = "snapgpt.cli:main"
+snapgpt = "snapgpt.cli.main:main"

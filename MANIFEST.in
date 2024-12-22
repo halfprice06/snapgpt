@@ -1,3 +1,4 @@
-include LICENSE
+# ======= File: MANIFEST.in =======
 include README.md
-include pyproject.toml
+include LICENSE
+recursive-include snapgpt/resources *

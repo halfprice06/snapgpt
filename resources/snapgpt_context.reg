@@ -1,0 +1,16 @@
+; ======= File: snapgpt/resources/snapgpt_context.reg =======
+Windows Registry Editor Version 5.00
+
+; ============ Right-click on any folder
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\SnapGPT]
+@="Create Snapshot With SnapGPT"
+
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\SnapGPT\command]
+@="\"%LocalAppData%\\Programs\\Python\\Python39\\Scripts\\snapgpt_context.bat\" \"%1\""
+
+; ============ Right-click on any file
+[HKEY_CURRENT_USER\Software\Classes\*\shell\SnapGPT]
+@="Create Snapshot With SnapGPT"
+
+[HKEY_CURRENT_USER\Software\Classes\*\shell\SnapGPT\command]
+@="\"%LocalAppData%\\Programs\\Python\\Python39\\Scripts\\snapgpt_context.bat\" \"%1\""

@@ -1,16 +1,33 @@
 # SnapGPT 📸
 
-SnapGPT is a command-line utility that creates a single, well-organized snapshot of your codebase. It's especially handy for sharing your project context with AI coding assistants (like ChatGPT) while keeping your code local. By default, SnapGPT automatically opens the snapshotted code file in **Cursor**, so that on the ChatGPT Desktop app your code repository is "autofocused" and you can start asking ChatGPT questions right away—no copy and pasting required. You can configure it to open in other editors as well (VS Code, Windsurf, Zed, Xcode).
+SnapGPT is a command-line utility that streamlines sharing your codebase with ChatGPT. When run from your project's directory, it creates a single, organized snapshot file (working_snapshot.md) containing all your relevant code. Designed specifically for the ChatGPT Desktop app on MacOS, it automatically opens this snapshot in TextEdit and integrates with ChatGPT's o1 and o1-pro features. No manual copying required—just run SnapGPT and start chatting with AI about your code. If you run SnapGPT in 'watch' mode, it will also automaticlaly update the working_snapshot.md file as you code so the ChatGPT Desktop app will always have the latest version of your codebase.
+
+Just click the [Work With Button](https://github.com/halfprice06/snapgpt/assets/work-with-button.png) to pair with TextEditin the ChatGPT Desktop App and SnapGPT will do the rest.
 
 SnapGPT offers two modes:
 
-* **Incremental Mode** (Default): A snapshot of your codebase is created when you run 'snapgpt' in the terminal. 
+* **Default Mode**: A snapshot of your codebase is created when you run 'snapgpt' in the terminal and opened inside TextEdit.
 
-* **Watch Mode**: Automatically updates your snapshot as you code—great for active development sessions with AI assistance
+* **Watch Mode**: Automatically updates your snapshot as you code using the watchdog library. Continues to watch until you stop it with Ctrl+C.
 
 For example:
+
 ```bash
 snapgpt watch
+```
+
+The following are my suggested custom instructions for the ChatGPT Desktop App to pair with TextEdit and a coding IDE like Cursor:
+
+``` bash
+You are a coding assitant. Unless directed otherwise, you are going to be given the snapshot of the current working code base or project repository. You may not be given every file. 
+
+When the user asks for changes, if the changes involve more than just a couple simple methods, always return the entire file or files that need to be changed so the user can copy and paste them into their ide. 
+
+For simple changes that involve small portions of a single file or a few methods from a few files, instead return explicit instructions that you are giving to a smaller ‘work horse’ model that will implement your changes. Your instructions to that model must be comprehensive such that the model can take your instructions nad implement all changes on its own. 
+
+When you respond, always specify to the user whether you are giving them full code files to copy and paste or whether you are giving instructions to the work horse agent. 
+
+When giving the work horse agent instructions, give all of the instructions in a single code block so it’s easily and copy and pasted to the work horse agent.
 ```
 
 In either mode, SnapGPT crawls through your directories, gathers all relevant code files (based on your config and preferences), and concatenates them into one text file for easy reading or chat-pasting.
@@ -57,12 +74,12 @@ By default, SnapGPT will:
 1. Recursively scan the current directory (`.`).
 2. Exclude folders such as __pycache__, .git, node_modules, etc.
 3. Include files with extensions like .py, .js, .md, .json, and more.
-4. Save everything to full_code_snapshot.txt.
+4. Save everything to working_snapshot.md.
 5. Open that file in your chosen editor.
 6. Copy the content to your clipboard (if enabled).
 
 You will see:
-1. A directory tree at the top of full_code_snapshot.txt.
+1. A directory tree at the top of working_snapshot.md.
 2. Followed by the full text of every included file, separated by headers indicating file paths.
 
 ## Usage 📝
@@ -94,9 +111,9 @@ snapgpt watch
 ```
 
 SnapGPT will:
-1. Perform an initial incremental snapshot of your code (creating or updating full_code_snapshot.txt).
+1. Perform an initial incremental snapshot of your code (creating or updating working_snapshot.md).
 2. Stay running in the terminal, listening for filesystem changes (adds, edits, deletes).
-3. Update full_code_snapshot.txt automatically whenever you modify a file that's tracked by SnapGPT.
+3. Update working_snapshot.md automatically whenever you modify a file that's tracked by SnapGPT.
 
 Press Ctrl+C to stop watching.
 
@@ -116,7 +133,7 @@ Simply press Ctrl+C in the terminal to end the watch process. SnapGPT will print
 |--------------|-------------|
 | -d, --directories | List of directories to scan (default: .) |
 | -f, --files | List of specific files to include (overrides directory scanning) |
-| -o, --output | Output file path (default: full_code_snapshot.txt) |
+| -o, --output | Output file path (default: working_snapshot.md) |
 | -e, --extensions | File extensions to include (e.g. -e .py .js .md) |
 | --exclude-dirs | Directories to exclude from scanning |
 | --max-size | Maximum file size in MB to include (0 for no limit) |
@@ -151,7 +168,7 @@ snapgpt --max-size 1 --max-depth 5
 
 5. Watch mode with custom output file:
 ```bash
-snapgpt watch -d . --output live_snapshot.txt
+snapgpt watch -d . --output live_snapshot.md
 ```
 
 ## Configuration ⚙️
@@ -187,4 +204,3 @@ Please ensure your code follows best practices and is well-documented.
 This project is licensed under the MIT License. Feel free to use, modify, and distribute the code in accordance with the license terms.
 
 Happy snapping! 🎉 If you have any questions or feedback, feel free to open an issue or start a discussion.
-

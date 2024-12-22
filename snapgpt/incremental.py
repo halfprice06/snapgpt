@@ -53,7 +53,7 @@ def incremental_snapshot(
     
     :param project_root: The root directory of the project.
     :param file_paths: List of Path objects to include in the snapshot (already filtered by extension/size).
-    :param output_file: The path to write the final combined snapshot (full_code_snapshot.txt).
+    :param output_file: The path to write the final combined snapshot (working_snapshot.md).
     :param original_snapshot_func: The existing function that generates the final file contents
                                    (we'll override reading from disk for unchanged files).
     :param quiet: Suppress progress messages if True.
@@ -75,13 +75,11 @@ def incremental_snapshot(
 
     # Option A: We are doing a *full rewrite* of the output file but skip reading disk for unchanged files.
     # We still need the file text for unchanged files. Two approaches:
-    #   1) Reread from disk anyway (but then we gain no benefit).
-    #   2) Store the actual file text in the index (much larger index).
-    # For demonstration, we'll do #1 but call it "incremental" because we skip re-hashing or re-checking them in future runs.
-    # If you want a real partial approach, you'd store the file contents or partial snapshots in the index.
+    #   1) Reread from disk anyway (but then we gain no big speed advantage).
+    #   2) Store the actual file text in the index (makes a huge index).
+    # We'll do #1 for simplicity: we do a full rewrite each time, but the incremental step is that
+    # we only re-hash changed files next time.
 
-    # We'll just call the original snapshot function, which returns a string of everything concatenated.
-    # Then we update the .snapgpt_index with new hashes.
     snapshot_text = original_snapshot_func(file_paths)
     with open(output_file, 'w', encoding='utf-8') as out_f:
         out_f.write(snapshot_text)

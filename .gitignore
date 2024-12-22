@@ -49,6 +49,7 @@ venv.bak/
 !LICENSE.txt
 !README.txt
 .snapgpt_index
+working_snapshot.md
 
 # Test directories
 test_dir/

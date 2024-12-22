@@ -40,7 +40,7 @@ By default, it then:
 
 - **Single, Organized Snapshot**: Combine all relevant code and markdown files into one text file. 
 
-- **Automatic Editor Opening**: After generating the snapshot, it opens automatically in your preferred TexEditor or Notepad on Windows. 
+- **Automatic Editor Opening**: After generating the snapshot, it opens automatically in TexEdit or Notepad on Windows. 
 
 - **Incremental Scanning**: Only re-scan changed files, making repeated snapshots quick and efficient, even for large codebases.
 

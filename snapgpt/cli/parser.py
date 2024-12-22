@@ -59,9 +59,8 @@ def build_argparser():
                         help='Suppress output')
 
     # Global settings
-    # Add 'textedit' so we can set it as default editor
     parser.add_argument('--set-default-editor', 
-                        choices=['cursor', 'code', 'windsurf', 'zed', 'xcode', 'textedit'],
+                        choices=['cursor', 'code', 'windsurf', 'zed', 'xcode', 'textedit', 'notepad'],
                         metavar='EDITOR',
                         help='Set the default editor and exit')
     parser.add_argument('--set-default-extensions', nargs='+',
@@ -85,6 +84,12 @@ def build_argparser():
     watch_parser.add_argument('-d', '--directories', nargs='+', default=["."],
                               metavar='DIR',
                               help='List of directories to scan')
+    # ADD THE -f / --files ARGUMENT HERE FOR WATCH:
+    watch_parser.add_argument('-f', '--files', nargs='+',
+                              default=None,
+                              metavar='FILE',
+                              help='List of specific files to include (overrides directory scanning)')
+
     watch_parser.add_argument('-o', '--output', default="working_snapshot.md",
                               metavar='FILE',
                               help='Output file path')

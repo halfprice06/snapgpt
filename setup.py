@@ -1,6 +1,5 @@
 # ======= File: setup.py =======
 import os
-import sys
 import platform
 import subprocess
 import shutil

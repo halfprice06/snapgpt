@@ -31,6 +31,10 @@ def find_editor_on_windows(editor: str) -> str:
             r"%LOCALAPPDATA%\Programs\Zed\Zed.exe",
             r"%PROGRAMFILES%\Zed\Zed.exe",
         ],
+        'notepad': [
+            r"%WINDIR%\System32\notepad.exe",
+            r"%WINDIR%\notepad.exe"
+        ]
         # textedit is not a typical Windows editor, so we omit
     }
 
@@ -98,6 +102,29 @@ def try_open_in_editor_windows(editor: str, file_path: str, quiet: bool = False)
                         return True
                     except (subprocess.SubprocessError, OSError):
                         pass
+
+            if editor == 'notepad':
+                # fallback to just calling 'notepad' with the file if we didn't find the EXE
+                try:
+                    abs_file_path = os.path.abspath(file_path)
+                    kwargs = {
+                        'stdin': subprocess.DEVNULL,
+                        'stdout': subprocess.DEVNULL,
+                        'stderr': subprocess.DEVNULL,
+                        'creationflags': subprocess.DETACHED_PROCESS
+                    }
+                    p = subprocess.Popen(['notepad', abs_file_path], **kwargs)
+                    if p.stdin:
+                        p.stdin.close()
+                    if p.stdout:
+                        p.stdout.close()
+                    if p.stderr:
+                        p.stderr.close()
+                    print_progress(f"Opened {file_path} in Notepad (fallback)", quiet)
+                    return True
+                except (subprocess.SubprocessError, OSError):
+                    pass
+
     if not quiet:
         print_warning(f"Could not open {editor.title()}. Please make sure it is installed correctly.")
     return False
@@ -169,9 +196,19 @@ def find_editor_path(editor: str) -> str:
 
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
-    Open the given file in the specified editor.
-    Fully detach the editor process so Python won't track it as a child.
+    Open the snapshot in:
+      - on macOS: user’s requested editor, possibly refreshing TextEdit as well
+      - on Windows: both the user’s requested editor *and* Notepad (to mirror the mac approach).
     """
+    # Windows: open user-chosen editor, then also open Notepad
+    if sys.platform == 'win32':
+        # First, open in the chosen editor (the “default_editor” from config)
+        try_open_in_editor_windows(editor, file_path, quiet=quiet)
+        # Also open in Notepad, just like macOS always opens TextEdit in the background
+        try_open_in_editor_windows("notepad", file_path, quiet=quiet)
+        return
+
+    # Non-Windows
     if sys.platform != 'win32':
         _ignore_sigchld_if_possible()
 
@@ -190,12 +227,12 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
         print_error("Xcode is only available on macOS", quiet)
         return
 
-    # On Windows, try a Windows-specific approach
+    # On Windows, we’d never reach here, but if we do:
     if sys.platform == 'win32' and editor in ['cursor', 'code', 'windsurf', 'zed']:
         if try_open_in_editor_windows(editor, file_path, quiet):
             return
 
-    # If user specifically wants textedit on mac/linux:
+    # If user specifically wants textedit on mac:
     if editor == 'textedit' and sys.platform == 'darwin':
         abs_file_path = os.path.abspath(file_path)
         kwargs = {
@@ -232,7 +269,7 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
                 print_error("Failed to open file in any editor", quiet)
         return
 
-    # Otherwise, proceed with the general method
+    # Otherwise, proceed with the general method (mac/linux)
     editor_path = find_editor_path(editor)
     if not editor_path:
         # Try fallback editors if the requested one isn't found
@@ -255,7 +292,7 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
                 'stdout': subprocess.DEVNULL,
                 'stderr': subprocess.DEVNULL
             }
-            # Windows uses DETACHED_PROCESS
+            # Windows uses DETACHED_PROCESS (though on Windows we’d normally not be here)
             if sys.platform == 'win32':
                 kwargs['creationflags'] = subprocess.DETACHED_PROCESS
             else:
@@ -282,7 +319,7 @@ def open_in_editor(file_path, editor='cursor', quiet=False):
                     if p.stderr:
                         p.stderr.close()
             else:
-                # Linux, or xcode on mac
+                # Linux or xcode on mac
                 p = subprocess.Popen([editor_path, abs_file_path], **kwargs)
                 if p.stdin:
                     p.stdin.close()

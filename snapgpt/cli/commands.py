@@ -15,7 +15,6 @@ from ..watch import watch_directory
 
 _markitdown_converter = None
 
-
 def init_markitdown():
     """Initialize the MarkItDown converter if not already initialized."""
     global _markitdown_converter
@@ -176,7 +175,7 @@ def run_incremental_snapshot(
             excluded_file_path=Path(output_file).resolve()
         )
 
-    # Confirm scanning non-git/system directories for the first folder
+    # Confirm scanning non-git/system directories
     for directory in directories:
         abs_dir = Path(directory).resolve()
         if is_system_directory(str(abs_dir)):
@@ -237,7 +236,8 @@ def run_watch_mode(args):
         nonlocal first_run
         run_incremental_snapshot(
             directories=args.directories,
-            files=None,
+            # PASS ARGS.FILES HERE INSTEAD OF None
+            files=args.files,
             output_file=output_path,
             extensions=exts,
             exclude_dirs=exc_dirs,
@@ -265,9 +265,11 @@ def run_watch_mode(args):
 
     # Run initial snapshot
     do_incremental()
+    # PASS files=args.files TO watch_directory
     watch_directory(
         project_root=project_root,
         snapshot_func=do_incremental,
         is_included_func=is_included_func,
-        quiet=args.quiet
+        quiet=args.quiet,
+        files=args.files
     )

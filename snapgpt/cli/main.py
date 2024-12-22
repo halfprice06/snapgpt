@@ -1,4 +1,8 @@
 import sys
+import warnings
+from warnings import simplefilter
+simplefilter("ignore", ResourceWarning)
+
 from .parser import build_argparser
 from .config import (
     do_first_time_setup, set_default_editor, set_default_extensions,

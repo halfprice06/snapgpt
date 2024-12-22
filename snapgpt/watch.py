@@ -139,3 +139,5 @@ def watch_directory(project_root: Path, snapshot_func, is_included_func, quiet=F
             print("[watch] Stopping...")
         observer.stop()
     observer.join()
+
+    

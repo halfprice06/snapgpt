@@ -1,6 +1,5 @@
 import sys
 import os
-import subprocess
 import shutil
 import signal
 from pathlib import Path
@@ -9,6 +8,25 @@ from .config import print_warning, print_error, print_progress
 def _ignore_sigchld_if_possible():
     if hasattr(signal, 'SIGCHLD'):
         signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
+def _shell_launch_background(command_str, quiet=False):
+    """
+    Launch a background process via the OS shell without creating a Python subprocess.Popen handle.
+    This avoids the ResourceWarning in Python 3.13+.
+    """
+    try:
+        if sys.platform.startswith('win'):
+            # On Windows, 'start /min "" ...' starts a detached process in a minimized window
+            os.system(f'start /min "" {command_str}')
+        else:
+            # On macOS/Linux, use & to background it; redirect to /dev/null so it doesn't keep a terminal open
+            # For TextEdit specifically, use -g to prevent focus stealing
+            if "open -a TextEdit" in command_str:
+                command_str = command_str.replace("open -a TextEdit", "open -g -a TextEdit")
+            os.system(f'({command_str}) > /dev/null 2>&1 &')
+    except Exception as e:
+        if not quiet:
+            print_warning(f"Failed to shell-launch '{command_str}': {e}")
 
 def find_editor_on_windows(editor: str) -> str:
     editor_paths = {
@@ -37,98 +55,54 @@ def find_editor_on_windows(editor: str) -> str:
         ]
         # textedit is not a typical Windows editor, so we omit
     }
-
     if editor not in editor_paths:
         return None
-
     for path in editor_paths[editor]:
         expanded_path = os.path.expandvars(path)
         if os.path.isfile(expanded_path):
             return expanded_path
     return None
 
-
 def try_open_in_editor_windows(editor: str, file_path: str, quiet: bool = False) -> bool:
     """
     Attempt to open a file in the specified editor on Windows.
-    Uses DETACHED_PROCESS so the subprocess won't block SnapGPT.
-    Returns True if successful, False otherwise.
+    We do NOT keep a Python handle to the process -> no ResourceWarning.
     """
+    # Try to find a direct path to the editor .exe
     editor_path = find_editor_on_windows(editor)
-    if editor_path and editor_path.lower().endswith(f'{editor}.exe'):
-        try:
-            abs_file_path = os.path.abspath(file_path)
-            kwargs = {
-                'stdin': subprocess.DEVNULL,
-                'stdout': subprocess.DEVNULL,
-                'stderr': subprocess.DEVNULL,
-                'creationflags': subprocess.DETACHED_PROCESS
-            }
-            p = subprocess.Popen([editor_path, abs_file_path], **kwargs)
-            # Close out references to avoid Python 3.13 ResourceWarning
-            if p.stdin:
-                p.stdin.close()
-            if p.stdout:
-                p.stdout.close()
-            if p.stderr:
-                p.stderr.close()
+    abs_file_path = os.path.abspath(file_path)
+    if editor_path and os.path.isfile(editor_path):
+        # Use a shell command: "start "" <editor_path> <file_path>"
+        quoted_editor = f'"{editor_path}"'
+        quoted_file = f'"{abs_file_path}"'
+        _shell_launch_background(f'{quoted_editor} {quoted_file}', quiet=quiet)
+        print_progress(f"Opened {file_path} in {editor.title()}", quiet)
+        return True
 
-            print_progress(f"Opened {file_path} in {editor.title()}", quiet)
+    # Fallbacks:
+    if editor == 'cursor':
+        # Cursor might have a CLI-based approach. We can attempt: "node cli.js <path>" 
+        # But let's do the same shell approach:
+        # e.g. "start "" node C:\Users\You\AppData\Local\Programs\Cursor\resources\app\out\cli.js <file>"
+        cli_path = os.path.expandvars(
+            r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js"
+        )
+        if os.path.isfile(cli_path):
+            cmd_str = f'node "{cli_path}" "{abs_file_path}"'
+            _shell_launch_background(cmd_str, quiet=quiet)
+            print_progress(f"Opened {file_path} in Cursor (CLI fallback)", quiet)
             return True
-        except (subprocess.SubprocessError, OSError):
-            # If that fails, try using Cursor CLI logic if editor == 'cursor'
-            if editor == 'cursor':
-                cli_path = os.path.expandvars(
-                    r"%LOCALAPPDATA%\Programs\Cursor\resources\app\out\cli.js"
-                )
-                if os.path.isfile(cli_path):
-                    try:
-                        kwargs = {
-                            'stdin': subprocess.DEVNULL,
-                            'stdout': subprocess.DEVNULL,
-                            'stderr': subprocess.DEVNULL,
-                            'creationflags': subprocess.DETACHED_PROCESS
-                        }
-                        p = subprocess.Popen(['node', cli_path, abs_file_path], **kwargs)
-                        # Close descriptors
-                        if p.stdin:
-                            p.stdin.close()
-                        if p.stdout:
-                            p.stdout.close()
-                        if p.stderr:
-                            p.stderr.close()
-                        
-                        print_progress(f"Opened {file_path} in {editor.title()} using CLI", quiet)
-                        return True
-                    except (subprocess.SubprocessError, OSError):
-                        pass
 
-            if editor == 'notepad':
-                # fallback to just calling 'notepad' with the file if we didn't find the EXE
-                try:
-                    abs_file_path = os.path.abspath(file_path)
-                    kwargs = {
-                        'stdin': subprocess.DEVNULL,
-                        'stdout': subprocess.DEVNULL,
-                        'stderr': subprocess.DEVNULL,
-                        'creationflags': subprocess.DETACHED_PROCESS
-                    }
-                    p = subprocess.Popen(['notepad', abs_file_path], **kwargs)
-                    if p.stdin:
-                        p.stdin.close()
-                    if p.stdout:
-                        p.stdout.close()
-                    if p.stderr:
-                        p.stderr.close()
-                    print_progress(f"Opened {file_path} in Notepad (fallback)", quiet)
-                    return True
-                except (subprocess.SubprocessError, OSError):
-                    pass
+    if editor == 'notepad':
+        # Just call 'notepad <file>'
+        _shell_launch_background(f'notepad "{abs_file_path}"', quiet=quiet)
+        print_progress(f"Opened {file_path} in Notepad", quiet)
+        return True
 
+    # If all else fails, warn
     if not quiet:
-        print_warning(f"Could not open {editor.title()}. Please make sure it is installed correctly.")
+        print_warning(f"Could not open {editor.title()}. Please make sure it's installed correctly.")
     return False
-
 
 def find_editor_path(editor: str) -> str:
     """
@@ -163,15 +137,13 @@ def find_editor_path(editor: str) -> str:
             '~/.local/bin/zed'
         ],
         'textedit': [
-            # For macOS 13+ (Ventura)
             '/System/Applications/TextEdit.app/Contents/MacOS/TextEdit',
-            # For older macOS
             '/Applications/TextEdit.app/Contents/MacOS/TextEdit'
         ]
     }
 
     if editor not in editor_paths:
-        print_warning(f"Editor {editor} not in known paths")
+        print_warning(f"Editor {editor} not in known macOS/Linux paths")
         return None
 
     # textedit won't be found in PATH, but for others we can try which
@@ -187,169 +159,68 @@ def find_editor_path(editor: str) -> str:
         if os.path.isfile(expanded_path):
             print_progress(f"Found {editor} at: {expanded_path}")
             return expanded_path
-        else:
-            print_warning(f"Tried {editor} at: {expanded_path} (not found)")
 
     print_warning(f"Could not find {editor} in any expected location")
     return None
 
-
 def open_in_editor(file_path, editor='cursor', quiet=False):
     """
-    Open the snapshot in:
-      - on macOS: user’s requested editor, possibly refreshing TextEdit as well
-      - on Windows: both the user’s requested editor *and* Notepad (to mirror the mac approach).
+    Open the snapshot on:
+      - Windows: user-chosen editor (plus Notepad fallback).
+      - macOS/Linux: user-chosen editor, or fallback to system open.
+    We do not store a subprocess handle in Python -> no ResourceWarning.
     """
-    # Windows: open user-chosen editor, then also open Notepad
     if sys.platform == 'win32':
-        # First, open in the chosen editor (the “default_editor” from config)
-        try_open_in_editor_windows(editor, file_path, quiet=quiet)
-        # Also open in Notepad, just like macOS always opens TextEdit in the background
+        # Windows: try the chosen editor
+        success = try_open_in_editor_windows(editor, file_path, quiet=quiet)
+        # Also open Notepad in the background to mirror old behavior
         try_open_in_editor_windows("notepad", file_path, quiet=quiet)
         return
 
-    # Non-Windows
     if sys.platform != 'win32':
         _ignore_sigchld_if_possible()
 
     editor = editor.lower()
     print_progress(f"Attempting to open with editor: {editor}", quiet=quiet)
-    
-    editor_commands = {
-        'cursor': 'cursor',
-        'code': 'code',
-        'windsurf': 'windsurf',
-        'zed': 'zed',
-        'xcode': 'xed',
-        'textedit': 'textedit'
-    }
+    abs_file_path = os.path.abspath(file_path)
+
     if editor == 'xcode' and sys.platform != 'darwin':
         print_error("Xcode is only available on macOS", quiet)
         return
 
-    # On Windows, we’d never reach here, but if we do:
-    if sys.platform == 'win32' and editor in ['cursor', 'code', 'windsurf', 'zed']:
-        if try_open_in_editor_windows(editor, file_path, quiet):
-            return
-
     # If user specifically wants textedit on mac:
     if editor == 'textedit' and sys.platform == 'darwin':
-        abs_file_path = os.path.abspath(file_path)
-        kwargs = {
-            'stdin': subprocess.DEVNULL,
-            'stdout': subprocess.DEVNULL,
-            'stderr': subprocess.DEVNULL,
-            'start_new_session': True
-        }
-        try:
-            # direct "open -a TextEdit" also works, but we'll use the path found
-            textedit_path = find_editor_path('textedit')
-            if textedit_path and os.path.isfile(textedit_path):
-                p = subprocess.Popen(['open', '-a', 'TextEdit', abs_file_path], **kwargs)
-                if p.stdin:
-                    p.stdin.close()
-                if p.stdout:
-                    p.stdout.close()
-                if p.stderr:
-                    p.stderr.close()
-                print_progress(f"Opened {file_path} in TextEdit", quiet)
-                return
-            else:
-                # fallback: system open
-                subprocess.run(['open', abs_file_path], check=True)
-                print_progress(f"Opened {file_path} via system open (TextEdit fallback)", quiet)
-                return
-        except (subprocess.SubprocessError, OSError) as e:
-            print_warning(f"Failed to open with TextEdit: {str(e)}")
-            # final fallback
-            try:
-                subprocess.run(['open', abs_file_path], check=True)
-                print_progress(f"Opened {file_path} in system default editor", quiet)
-            except (subprocess.SubprocessError, FileNotFoundError):
-                print_error("Failed to open file in any editor", quiet)
+        # We'll do: open -a TextEdit <file> in the background
+        _shell_launch_background(f'open -a TextEdit "{abs_file_path}"', quiet=quiet)
+        print_progress(f"Opened {file_path} in TextEdit", quiet)
         return
 
-    # Otherwise, proceed with the general method (mac/linux)
+    # Non-textedit route
     editor_path = find_editor_path(editor)
-    if not editor_path:
-        # Try fallback editors if the requested one isn't found
-        for fallback in ['cursor', 'code', 'windsurf', 'zed']:
-            if fallback != editor:
-                print_progress(f"Trying fallback editor: {fallback}", quiet)
-                fallback_path = find_editor_path(fallback)
-                if fallback_path:
-                    print_progress(f"Using fallback editor: {fallback}", quiet)
-                    editor = fallback
-                    editor_path = fallback_path
-                    break
+    if editor_path and os.path.isfile(editor_path):
+        # Attempt direct shell launch (backgrounded)
+        # e.g. '(<editor_path> "<abs_file_path>") &' on mac/linux
+        # or 'start "" <editor_path> <file_path>' on Windows (though we handled that separately)
+        _shell_launch_background(f'"{editor_path}" "{abs_file_path}"', quiet=quiet)
+        print_progress(f"Opened {file_path} in {editor.title()}", quiet)
+        return
 
-    # If we found a path or fallback, attempt to launch
-    if editor_path:
-        try:
-            abs_file_path = os.path.abspath(file_path)
-            kwargs = {
-                'stdin': subprocess.DEVNULL,
-                'stdout': subprocess.DEVNULL,
-                'stderr': subprocess.DEVNULL
-            }
-            # Windows uses DETACHED_PROCESS (though on Windows we’d normally not be here)
-            if sys.platform == 'win32':
-                kwargs['creationflags'] = subprocess.DETACHED_PROCESS
-            else:
-                # macOS/Linux: fully detach with start_new_session=True
-                kwargs['start_new_session'] = True
-
-            # On macOS, if not using xcode or textedit, we either do a direct spawn or 'open -a'...
-            if sys.platform == 'darwin' and editor not in ['xcode', 'textedit']:
-                if '.app/Contents/MacOS' in editor_path:
-                    app_root = editor_path.split('/Contents/MacOS/')[0]
-                    p = subprocess.Popen(['open', '-a', app_root, abs_file_path], **kwargs)
-                    if p.stdin:
-                        p.stdin.close()
-                    if p.stdout:
-                        p.stdout.close()
-                    if p.stderr:
-                        p.stderr.close()
-                else:
-                    p = subprocess.Popen([editor_path, abs_file_path], **kwargs)
-                    if p.stdin:
-                        p.stdin.close()
-                    if p.stdout:
-                        p.stdout.close()
-                    if p.stderr:
-                        p.stderr.close()
-            else:
-                # Linux or xcode on mac
-                p = subprocess.Popen([editor_path, abs_file_path], **kwargs)
-                if p.stdin:
-                    p.stdin.close()
-                if p.stdout:
-                    p.stdout.close()
-                if p.stderr:
-                    p.stderr.close()
-
-            print_progress(f"Opened {file_path} in {editor.title()}", quiet)
-            return
-        except (subprocess.SubprocessError, OSError) as e:
-            print_warning(f"Failed to open with {editor}: {str(e)}")
-
-    # Final fallback: system default
-    try:
-        if sys.platform == 'darwin':
-            subprocess.run(['open', file_path], check=True)
-        elif sys.platform == 'win32':
-            os.startfile(file_path)
+    # Mac/Linux fallback: system open
+    if sys.platform == 'darwin':
+        _shell_launch_background(f'open "{abs_file_path}"', quiet=quiet)
+        print_progress(f"Opened {file_path} in system default (macOS)", quiet)
+    else:
+        # e.g. Linux fallback
+        if shutil.which('xdg-open'):
+            _shell_launch_background(f'xdg-open "{abs_file_path}"', quiet=quiet)
+            print_progress(f"Opened {file_path} in system default (xdg-open)", quiet)
         else:
-            subprocess.run(['xdg-open', file_path], check=True)
-        print_progress(f"Opened {file_path} in system default editor", quiet)
-    except (subprocess.SubprocessError, FileNotFoundError, AttributeError):
-        print_error("Failed to open file in any editor", quiet)
-
+            print_error("No known way to open file. Install xdg-open or specify a known editor.", quiet)
 
 def refresh_textedit_in_background(file_path: str, quiet: bool = False):
     """
-    Force TextEdit to close and reopen `file_path` without stealing focus (macOS).
-    NOTE: This discards any unsaved changes in TextEdit for that file.
+    Force TextEdit on macOS to close & reopen `file_path` without stealing focus.
+    If you do this, you'll see no ResourceWarning because we shell out the commands.
     """
     if sys.platform == 'darwin':
         import subprocess
@@ -358,12 +229,10 @@ def refresh_textedit_in_background(file_path: str, quiet: bool = False):
             file_name = Path(file_path).name
             applescript = f'''
             tell application "TextEdit"
-                -- Close matching documents (discarding changes)
                 set docs to every document whose name is "{file_name}"
                 repeat with d in docs
                     close d saving no
                 end repeat
-                -- Open again
                 open POSIX file "{file_path}"
             end tell
 
@@ -375,6 +244,7 @@ def refresh_textedit_in_background(file_path: str, quiet: bool = False):
                 end if
             end tell
             '''
+            # We can just do a one-shot call to osascript. No persistent Python child process.
             subprocess.run(["osascript", "-e", applescript], check=True)
             print_progress(f"Forcibly reloaded {file_path} in TextEdit (background)", quiet)
         except subprocess.SubprocessError:

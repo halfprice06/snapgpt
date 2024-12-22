@@ -220,7 +220,7 @@ def run_incremental_snapshot(
         from .config import get_default_editor
         editor = get_default_editor()
         open_in_editor(str(output_path), editor, quiet=quiet)
-        refresh_textedit_in_background(str(output_path), quiet=quiet)
+        # refresh_textedit_in_background(str(output_path), quiet=quiet)  # Removed to avoid double reload on first run
 
 
 def run_watch_mode(args):
@@ -236,7 +236,6 @@ def run_watch_mode(args):
         nonlocal first_run
         run_incremental_snapshot(
             directories=args.directories,
-            # PASS ARGS.FILES HERE INSTEAD OF None
             files=args.files,
             output_file=output_path,
             extensions=exts,
@@ -246,7 +245,12 @@ def run_watch_mode(args):
             quiet=args.quiet,
             skip_open_in_editor=not first_run
         )
-        refresh_textedit_in_background(str(output_path), quiet=args.quiet)
+
+        # Always reload TextEdit when on macOS, even after first run
+        if sys.platform == 'darwin':
+            from .editor import refresh_textedit_in_background
+            refresh_textedit_in_background(str(output_path), quiet=args.quiet)
+
         first_run = False
 
     def is_included_func(file_path: Path) -> bool:

@@ -193,3 +193,5 @@ SnapGPT is licensed under the MIT License. You are free to use, modify, and dist
 ## Support & Feedback
 
 If you have any questions, encounter bugs, or just want to share feedback, please open an issue or start a discussion. We'd love to hear from you—happy snapping!
+
+banana

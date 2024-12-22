@@ -40,7 +40,7 @@ By default, it then:
 
 - **Single, Organized Snapshot**: Combine all relevant code and markdown files into one text file. 
 
-- **Automatic Editor Opening**: After generating the snapshot, it opens automatically in TexEdit or Notepad on Windows. 
+- **Automatic Editor Opening**: After generating the snapshot, it opens automatically in TexEdit or Notepad on Windows and also in your IDE of choice. 
 
 - **Incremental Scanning**: Only re-scan changed files, making repeated snapshots quick and efficient, even for large codebases.
 
@@ -129,7 +129,7 @@ snapgpt watch
 | --max-depth | Maximum directory depth (0 for no limit) |
 | -q, --quiet | Suppress progress/output messages |
 | --no-copy | Disable copying snapshot content to clipboard |
-| --set-default-editor | Configure a global default editor (e.g. code, cursor) |
+| --set-default-editor | Configure a global default IDE (e.g. code, cursor) |
 | --set-default-extensions | Set default file extensions globally |
 | --set-default-exclude-dirs | Set default excluded directories globally |
 

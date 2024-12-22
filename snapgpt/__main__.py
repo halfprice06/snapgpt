@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from .cli import main
+import sys
+from snapgpt.cli import main
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main.main())

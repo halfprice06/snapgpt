@@ -101,8 +101,7 @@ def generate_snapshot_text(file_paths: list, directory_tree: str) -> str:
         ".ppt", ".pptx",
         ".jpg", ".jpeg", ".png", ".gif",
         ".mp3", ".wav", ".m4a",
-        ".html", ".htm",
-        ".csv", ".json", ".xml",
+        ".csv", ".xml",
         ".zip"
     }
 

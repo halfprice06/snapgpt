@@ -13,7 +13,7 @@ DEFAULT_CONFIG = {
         # Code files
         ".py", ".js", ".ts", ".jsx", ".tsx",
         ".go", ".rs", ".java",
-        ".cpp", ".c", ".h",
+        ".cpp", ".c", ".h", ".html",
         
         # Config files
         ".toml", ".yaml", ".yml", ".json",
